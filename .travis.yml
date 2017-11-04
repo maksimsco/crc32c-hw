@@ -1,0 +1,12 @@
+language: rust
+sudo: false
+rust:
+  - nightly
+
+script:
+  - cargo test
+  - cargo test --features no-stdlib
+  - RUSTFLAGS="-C target_cpu=native" cargo test
+  - RUSTFLAGS="-C target_cpu=native" cargo test --features no-stdlib
+  - RUSTFLAGS="-C target_cpu=native" cargo bench
+  
