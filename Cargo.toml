@@ -1,0 +1,24 @@
+[package]
+authors = ["Maksims Ivanovs"]
+categories = ["algorithms"]
+description = "Hardware-accelerated (SSE 4.2) implementation of CRC32C with software fallback"
+documentation = "http://docs.rs/crc32c-hw"
+homepage = "https://github.com/maksimsco/crc32c-hw"
+keywords = ["crc", "crc32", "crc32c", "hash", "checksum"]
+license = "MIT/Apache-2.0"
+name = "crc32c-hw"
+readme = "README.md"
+repository = "https://github.com/maksimsco/crc32c-hw"
+version = "0.1.2"
+
+[badges.travis-ci]
+repository = "maksimsco/crc32c-hw"
+
+[dependencies]
+stdsimd = "0.0.3"
+
+[dev-dependencies]
+rand = "0.3.16"
+
+[features]
+no-stdlib = []

@@ -1,0 +1,6 @@
+tab_spaces = 2
+reorder_imports = true
+reorder_imported_names = true
+attributes_on_same_line_as_field = false
+chain_one_line_max = 90
+fn_call_width = 90
