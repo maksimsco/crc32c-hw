@@ -8,6 +8,4 @@ script:
   - cargo test --features no-stdlib
   - RUSTFLAGS="-C target_cpu=native" cargo test
   - RUSTFLAGS="-C target_cpu=native" cargo test --features no-stdlib
-  - cargo bench
-  - RUSTFLAGS="-C target_cpu=native" cargo bench
   
