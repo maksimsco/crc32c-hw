@@ -1,12 +1,9 @@
 //! CRC32C implementation with support for CPU-specific acceleration instructions (SSE 4.2)
 //! and software fallback
 //!
-//! [![crates.io](https://img.shields.io/crates/v/crc32c-hw.svg)]
-//! (https://crates.io/crates/crc32c-hw)
-//! [![Build Status](https://travis-ci.org/maksimsco/crc32c-hw.svg?branch=master)]
-//! (https://travis-ci.org/maksimsco/crc32c-hw)
-//!
-//! [Documentation](https://docs.rs/crc32c-hw)
+//! ![crates.io](https://img.shields.io/crates/v/crc32c-hw.svg)
+//! ![crc32c_hw](https://docs.rs/mio/badge.svg)
+//! ![Build Status](https://travis-ci.org/maksimsco/crc32c-hw.svg?branch=master)
 //!
 //! ## Usage
 //!
@@ -30,48 +27,27 @@
 //!
 //! assert_eq!(crc32c_hw::compute(b"123456789"), 0xe3069283);
 //! ```
-//!
-//! The easiest way to build binaries with CPU-specific instructions support is via
-//! environment variable:
-//!
-//! ```bash
-//! RUSTFLAGS="-C target_cpu=native" cargo build --release
-//! ```
-//!
-//! ## Performance
-//!
-//! `cargo bench` on `MacBook Pro Intel Core i5 2,7 GHz` results in `~23.0 GBps` (hardware) /
-//! `~2.5 GBps` (software) throughput.
-//!
-//! ```bash
-//! test crc32c_hw::tests::crc_0_065_000 ... bench:       2,808 ns/iter (+/- 398)
-//! test crc32c_hw::tests::crc_1_000_000 ... bench:      41,915 ns/iter (+/- 6,100)
-//! test crc32c_sw::tests::crc_0_065_000 ... bench:      25,686 ns/iter (+/- 19,423)
-//! test crc32c_sw::tests::crc_1_000_000 ... bench:     384,286 ns/iter (+/- 53,529)
-//! ```
-#![allow(unused_attributes)]
-#![feature(cfg_target_feature, custom_attribute, link_llvm_intrinsics, test)]
 #![no_std]
 #[cfg(not(feature = "no-stdlib"))]
 #[macro_use]
 extern crate std;
+extern crate byteorder;
 #[cfg(test)]
 extern crate rand;
-extern crate stdsimd;
-#[cfg(test)]
-extern crate test;
 #[cfg(target_feature = "sse4.2")]
 mod crc32c_hw;
 #[cfg(target_feature = "sse4.2")]
 mod crc32c_hw_consts;
-#[allow(dead_code)]
+#[cfg(target_feature = "sse4.2")]
+use crc32c_hw::crc32c_update;
+#[cfg(any(test, not(target_feature = "sse4.2")))]
 mod crc32c_sw;
-#[allow(dead_code)]
+#[cfg(any(test, not(target_feature = "sse4.2")))]
 mod crc32c_sw_consts;
-use crc32c_implementation::*;
+#[cfg(not(target_feature = "sse4.2"))]
+use crc32c_sw::crc32c_update;
 #[cfg(not(feature = "no-stdlib"))]
 pub use stdlib_implementation::*;
-
 
 #[cfg(not(feature = "no-stdlib"))]
 mod stdlib_implementation {
@@ -81,7 +57,7 @@ mod stdlib_implementation {
   /// Implements `Hasher` trait and usually represent state that is changed while hashing data.
   ///
   /// ## Example
-  /// ```no_run
+  /// ```
   /// use crc32c_hw::Digest;
   /// use std::hash::Hasher;
   ///
@@ -131,41 +107,15 @@ where
   crc32c_update(crc, buf)
 }
 
-#[cfg(target_feature = "sse4.2")]
-mod crc32c_implementation {
-  use super::*;
-
-  #[inline]
-  pub fn crc32c_update<T>(crc: u32, buf: T) -> u32
-  where
-    T: AsRef<[u8]>,
-  {
-    crc32c_hw::crc32c_update(crc, buf)
-  }
-}
-
-#[cfg(not(target_feature = "sse4.2"))]
-mod crc32c_implementation {
-  use super::*;
-
-  #[inline]
-  pub fn crc32c_update<T>(crc: u32, buf: T) -> u32
-  where
-    T: AsRef<[u8]>,
-  {
-    crc32c_sw::crc32c_update(crc, buf)
-  }
-}
-
-
 #[cfg(all(test, not(feature = "no-stdlib"), target_feature = "sse4.2"))]
 mod tests {
-  use super::*;
-  use rand::{OsRng, Rng};
+  use super::crc32c_hw;
+  use super::crc32c_sw;
+  use rand::{thread_rng, Rng, RngCore};
 
   macro_rules! compare_test {
-    (iterations=$iterations:expr, min=$min:expr, max=$max:expr) => ({
-      let mut rng = OsRng::new().expect("rng");
+    (iterations = $iterations:expr,min = $min:expr,max = $max:expr) => {{
+      let mut rng = thread_rng();
 
       for _ in 0..$iterations {
         let mut buf = vec![0u8; rng.gen_range($min, $max)];
@@ -177,13 +127,13 @@ mod tests {
 
         assert_eq!(crc_hw, crc_sw);
       }
-    })
+    }};
   }
 
   #[test]
   fn compare_hw_and_sw() {
-    compare_test!(iterations = 9000, min = 0, max = 430);
-    compare_test!(iterations = 4000, min = 0, max = 3900);
-    compare_test!(iterations = 1000, min = 0, max = 65000);
+    compare_test!(iterations = 1000, min = 0, max = 430);
+    compare_test!(iterations = 2000, min = 0, max = 3900);
+    compare_test!(iterations = 3000, min = 0, max = 65000);
   }
 }

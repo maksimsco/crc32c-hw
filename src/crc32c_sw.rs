@@ -1,33 +1,32 @@
-use core::intrinsics::copy_nonoverlapping;
-use crc32c_sw_consts::{BYTE_TABLE, STRIDE_TABLE_0, STRIDE_TABLE_1, STRIDE_TABLE_2, STRIDE_TABLE_3};
-
+use byteorder::{ByteOrder, LittleEndian};
+use crc32c_sw_consts::{
+  STRIDE_TABLE_0, STRIDE_TABLE_1, STRIDE_TABLE_2, STRIDE_TABLE_3, BYTE_TABLE,
+};
 
 fn read_u32(buf: &[u8], pos: usize) -> u32 {
   assert!(buf.len() >= pos + 4);
 
-  let mut result = 0u32;
   let src = &buf[pos..];
-  unsafe { copy_nonoverlapping(src.as_ptr(), &mut result as *mut u32 as *mut u8, 4) };
-
-  result.to_le()
+  LittleEndian::read_u32(src)
 }
 
 fn compute_u8(crc: u32, buf: &[u8], pos: usize) -> u32 {
-  assert!(buf.len() >= pos + 1);
+  assert!(buf.len() > pos);
 
   BYTE_TABLE[((crc as u8) ^ buf[pos]) as usize] ^ (crc >> 8)
 }
 
-#[rustfmt_skip]
 fn compute_u32(crc: u32, buf: &[u8], pos: usize) -> u32 {
   let t0 = crc as u8;
   let t1 = (crc >> 8) as u8;
   let t2 = (crc >> 16) as u8;
   let t3 = (crc >> 24) as u8;
 
-  let curr = read_u32(buf, pos);
-  STRIDE_TABLE_3[t0 as usize] ^ STRIDE_TABLE_2[t1 as usize] ^
-  STRIDE_TABLE_1[t2 as usize] ^ STRIDE_TABLE_0[t3 as usize] ^ curr
+  read_u32(buf, pos)
+    ^ STRIDE_TABLE_3[t0 as usize]
+    ^ STRIDE_TABLE_2[t1 as usize]
+    ^ STRIDE_TABLE_1[t2 as usize]
+    ^ STRIDE_TABLE_0[t3 as usize]
 }
 
 fn combine(crc1: u32, crc2: u32) -> u32 {
@@ -92,7 +91,6 @@ where
   !crc
 }
 
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -109,30 +107,5 @@ mod tests {
     crc = crc32c_update(crc, b"456");
     crc = crc32c_update(crc, b"789");
     assert_eq!(crc, 0xe3069283);
-  }
-}
-
-#[cfg(all(test, not(feature = "no-stdlib")))]
-mod benches {
-  use super::*;
-  use rand::{OsRng, Rng};
-  use test;
-
-  #[bench]
-  fn crc_0_065_000(b: &mut test::Bencher) {
-    let mut rng = OsRng::new().unwrap();
-    let mut buf = vec![0u8; 65_000];
-    rng.fill_bytes(&mut buf);
-
-    b.iter(|| test::black_box(crc32c_update(0, &buf)));
-  }
-
-  #[bench]
-  fn crc_1_000_000(b: &mut test::Bencher) {
-    let mut rng = OsRng::new().unwrap();
-    let mut buf = vec![0u8; 1_000_000];
-    rng.fill_bytes(&mut buf);
-
-    b.iter(|| test::black_box(crc32c_update(0, &buf)));
   }
 }

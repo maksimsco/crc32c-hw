@@ -1,7 +1,6 @@
-use core::intrinsics::copy_nonoverlapping;
+use byteorder::{ByteOrder, LittleEndian};
+use core::arch::x86_64::{_mm_crc32_u64, _mm_crc32_u8};
 use crc32c_hw_consts::{BLOCK_0_TABLE, BLOCK_1_TABLE, BLOCK_2_TABLE};
-use stdsimd::vendor::{_mm_crc32_u64, _mm_crc32_u8};
-
 
 const BLOCK_0_LEN: usize = 5440;
 const BLOCK_1_LEN: usize = 1360;
@@ -9,7 +8,7 @@ const BLOCK_2_LEN: usize = 336;
 
 #[inline]
 fn compute_u8(crc: u32, buf: &[u8], pos: usize) -> u32 {
-  assert!(buf.len() >= pos + 1);
+  assert!(buf.len() > pos);
 
   unsafe { _mm_crc32_u8(crc, buf[pos]) }
 }
@@ -20,16 +19,10 @@ where
 {
   assert!(buf.len() >= pos + 8);
 
-  let mut result = 0u64;
   let src = &buf[pos..];
-
-  unsafe {
-    copy_nonoverlapping(src.as_ptr(), &mut result as *mut u64 as *mut u8, 8);
-    _mm_crc32_u64(crc.into(), result.to_le())
-  }
+  unsafe { _mm_crc32_u64(crc.into(), LittleEndian::read_u64(src)) }
 }
 
-#[rustfmt_skip]
 fn shift(crc: u32, block_table: &[[u32; 16]; 8]) -> u32 {
   let t0 = crc & 0xf;
   let t1 = (crc >> 4) & 0xf;
@@ -40,10 +33,14 @@ fn shift(crc: u32, block_table: &[[u32; 16]; 8]) -> u32 {
   let t6 = (crc >> 24) & 0xf;
   let t7 = (crc >> 28) & 0xf;
 
-  block_table[0][t0 as usize] ^ block_table[1][t1 as usize] ^
-  block_table[2][t2 as usize] ^ block_table[3][t3 as usize] ^
-  block_table[4][t4 as usize] ^ block_table[5][t5 as usize] ^
-  block_table[6][t6 as usize] ^ block_table[7][t7 as usize]
+  block_table[0][t0 as usize]
+    ^ block_table[1][t1 as usize]
+    ^ block_table[2][t2 as usize]
+    ^ block_table[3][t3 as usize]
+    ^ block_table[4][t4 as usize]
+    ^ block_table[5][t5 as usize]
+    ^ block_table[6][t6 as usize]
+    ^ block_table[7][t7 as usize]
 }
 
 #[inline]
@@ -121,7 +118,6 @@ where
   !crc
 }
 
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -138,30 +134,5 @@ mod tests {
     crc = crc32c_update(crc, b"456");
     crc = crc32c_update(crc, b"789");
     assert_eq!(crc, 0xe3069283);
-  }
-}
-
-#[cfg(all(test, not(feature = "no-stdlib")))]
-mod benches {
-  use super::*;
-  use rand::{OsRng, Rng};
-  use test;
-
-  #[bench]
-  fn crc_0_065_000(b: &mut test::Bencher) {
-    let mut rng = OsRng::new().unwrap();
-    let mut buf = vec![0u8; 65_000];
-    rng.fill_bytes(&mut buf);
-
-    b.iter(|| test::black_box(crc32c_update(0, &buf)));
-  }
-
-  #[bench]
-  fn crc_1_000_000(b: &mut test::Bencher) {
-    let mut rng = OsRng::new().unwrap();
-    let mut buf = vec![0u8; 1_000_000];
-    rng.fill_bytes(&mut buf);
-
-    b.iter(|| test::black_box(crc32c_update(0, &buf)));
   }
 }
